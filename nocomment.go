@@ -9,6 +9,7 @@ const (
 	COMMENTS_MULTILINE            // 多行注释
 	COMMENTS_SINGLELINE           // 单行注释
 	COMMENTS_HTML                 // HTML注释
+	COMMENTS_JSP                  // jsp注视
 	BACKSLASH                     // 折行注释
 	CODE_CHAR                     // 字符
 	CHAR_ESCAPE_SEQUENCE          // 字符中的转义字符
@@ -25,6 +26,8 @@ type Stripper struct {
 	RemoveShellComment bool
 	// 删除 <!-- --> 风格的注释
 	RemoveHtmlComment bool
+	// 删除 <%-- --> 风格注视
+	RemoveJspComment bool
 }
 
 func (stripper *Stripper) Clean(input []byte) []byte {
@@ -59,11 +62,19 @@ func (stripper *Stripper) Clean(input []byte) []byte {
 					continue
 				}
 			case '<':
-				// <!--
 				if i < len(input)-3 {
+					// <!--
 					if stripper.RemoveHtmlComment {
 						if input[i+1] == '!' && input[i+2] == '-' && input[i+3] == '-' {
 							state = COMMENTS_HTML
+							i += 3
+							continue
+						}
+					}
+					// <%--
+					if stripper.RemoveJspComment {
+						if input[i+1] == '%' && input[i+2] == '-' && input[i+3] == '-' {
+							state = COMMENTS_JSP
 							i += 3
 							continue
 						}
@@ -95,6 +106,16 @@ func (stripper *Stripper) Clean(input []byte) []byte {
 				state = CODE
 			}
 		case COMMENTS_HTML:
+			// -->
+			if b == '-' {
+				if i < len(input)-2 {
+					if input[i+1] == '-' && input[i+2] == '>' {
+						state = CODE
+						i += 2
+					}
+				}
+			}
+		case COMMENTS_JSP:
 			// -->
 			if b == '-' {
 				if i < len(input)-2 {
